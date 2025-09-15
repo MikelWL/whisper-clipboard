@@ -1,0 +1,27 @@
+# WhisperDictate Dependencies
+
+# Core ML/Audio
+openai-whisper
+torch>=2.0.0
+torchaudio
+numpy
+
+# Audio processing
+pyaudio
+pydub
+
+# System integration
+pynput
+keyboard
+pyperclip
+
+# Configuration and utilities
+pyyaml
+more-itertools
+
+# Optional: OpenAI API fallback
+# openai
+
+# Development/debugging
+# ipython
+# jupyter

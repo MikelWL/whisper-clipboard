@@ -1,0 +1,1 @@
+sudo -E env HSA_OVERRIDE_GFX_VERSION=10.3.0 /home/mikel/miniconda3/envs/whisper/bin/python whisper_dictate.py

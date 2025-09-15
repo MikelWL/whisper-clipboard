@@ -1,0 +1,42 @@
+# WhisperDictate Configuration
+
+# Audio Settings
+audio:
+  sample_rate: 16000
+  chunk_size: 1024
+  channels: 1
+  device_index: 8  # HD Pro Webcam C920: USB Audio (hw:2,0)
+  
+# Whisper Settings
+whisper:
+  model_size: "large-v3"  # tiny, base, small, medium, large, large-v3
+  device: "auto"      # auto, cuda, cpu
+  language: "en"      # null for auto-detect
+  
+# Hotkeys
+hotkeys:
+  # Key for push-to-talk recording (Right Ctrl)
+  record_key: "right_ctrl"  # Hold Right Ctrl to record
+  # Keyboard shortcut to cancel recording
+  cancel_keys: "ctrl+shift+c"
+  
+# Recording Settings
+recording:
+  max_duration: 30    # seconds (safety limit for manual recording)
+  
+# Text Processing
+text:
+  auto_capitalize: true
+  auto_punctuate: true
+  remove_filler_words: false
+  
+# System
+system:
+  typing_delay: 0.01  # seconds between keystrokes
+  debug_mode: false
+  log_level: "INFO"   # DEBUG, INFO, WARNING, ERROR
+  # Injection settings
+  injection_mode: "paste"        # paste | type
+  paste_key: "ctrl+v"            # ctrl+v | ctrl+shift+v | shift+insert
+  restore_clipboard: true         # restore previous clipboard contents after paste
+  fail_fast: true                 # if paste fails, raise/log error and do not fallback
