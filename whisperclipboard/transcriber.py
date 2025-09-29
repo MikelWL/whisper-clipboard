@@ -1,5 +1,5 @@
 """
-Whisper transcription module for WhisperDictate.
+Whisper transcription module for Whisper Clipboard.
 Handles GPU-accelerated speech-to-text transcription with device fallback.
 """
 
@@ -11,50 +11,60 @@ import threading
 import time
 import re
 from typing import Optional, Dict, Any
-from device_detector import get_optimal_device, select_model_for_device
+from .device_detector import get_optimal_device, select_model_for_device
 
 
 class WhisperTranscriber:
     """GPU-accelerated Whisper transcription with fallback support."""
     
-    def __init__(self, 
+    def __init__(self,
                  model_size: str = "base",
-                 device: str = "auto", 
-                 language: Optional[str] = "en"):
+                 device: str = "auto",
+                 language: Optional[str] = "en",
+                 debug_mode: bool = False,
+                 load_model: bool = True):
         """
         Initialize WhisperTranscriber.
-        
+
         Args:
             model_size: Whisper model size (tiny, base, small, medium, large)
             device: Target device (auto, cuda, cpu)
             language: Target language (None for auto-detect)
+            debug_mode: Enable verbose debug logging
+            load_model: Load model immediately during initialization
         """
+        self.debug_mode = debug_mode
         self.logger = logging.getLogger(__name__)
-        
+
         # Configuration
         self.model_size = model_size
         self.language = language
         self.device = device if device != "auto" else get_optimal_device()
-        
+
         # Optimize model size for device
         self.model_size = select_model_for_device(self.device, model_size)
-        
+
         # State
         self.model = None
         self.model_load_lock = threading.Lock()
         self.is_loading = False
-        
+
         # Performance tracking
         self.transcription_times = []
         self.last_transcription_time = 0.0
-        
-        self.logger.info(f"WhisperTranscriber initialized: model={self.model_size}, "
-                        f"device={self.device}, language={self.language}")
+
+        if self.debug_mode:
+            self.logger.info(f"WhisperTranscriber initialized: model={self.model_size}, "
+                            f"device={self.device}, language={self.language}")
+
+        # Load model immediately if requested
+        if load_model:
+            self._load_model()
     
     def _load_model(self) -> bool:
         """
-        Lazy load Whisper model.
-        
+        Load Whisper model.
+
         Returns:
             bool: True if model loaded successfully
         """
@@ -70,18 +80,24 @@ class WhisperTranscriber:
             
             try:
                 self.is_loading = True
-                self.logger.info(f"Loading Whisper model '{self.model_size}' on {self.device}...")
-                
+
+                # Always show loading message for startup loading (not just debug mode)
+                print(f"🔄 Loading Whisper model '{self.model_size}' on {self.device}...")
+                if self.debug_mode:
+                    self.logger.info(f"Loading Whisper model '{self.model_size}' on {self.device}...")
+
                 start_time = time.time()
                 self.model = whisper.load_model(self.model_size, device=self.device)
                 load_time = time.time() - start_time
-                
-                self.logger.info(f"Model loaded successfully in {load_time:.2f}s")
-                
-                # Log model info
-                if hasattr(self.model, 'device'):
-                    actual_device = next(self.model.parameters()).device
-                    self.logger.info(f"Model loaded on device: {actual_device}")
+
+                print(f"✅ Model loaded in {load_time:.1f}s")
+                if self.debug_mode:
+                    self.logger.info(f"Model loaded successfully in {load_time:.2f}s")
+
+                    # Log model info
+                    if hasattr(self.model, 'device'):
+                        actual_device = next(self.model.parameters()).device
+                        self.logger.info(f"Model loaded on device: {actual_device}")
                 
                 return True
                 
@@ -195,8 +211,8 @@ class WhisperTranscriber:
         Returns:
             Optional[str]: Transcribed text or None if failed
         """
-        if not self._load_model():
-            self.logger.error("Model not available for transcription")
+        if self.model is None:
+            self.logger.error("Model not loaded - transcription unavailable")
             return None
         
         if len(audio_data) == 0:
@@ -239,14 +255,16 @@ class WhisperTranscriber:
             
             # Log results
             if final_text:
-                avg_time = np.mean(self.transcription_times)
-                real_time_factor = transcription_time / duration if duration > 0 else 0
-                
-                self.logger.info(f"Transcribed in {transcription_time:.2f}s "
-                               f"(RTF: {real_time_factor:.2f}, avg: {avg_time:.2f}s): "
-                               f'"{final_text}"')
+                if self.debug_mode:
+                    avg_time = np.mean(self.transcription_times)
+                    real_time_factor = transcription_time / duration if duration > 0 else 0
+
+                    self.logger.info(f"Transcribed in {transcription_time:.2f}s "
+                                   f"(RTF: {real_time_factor:.2f}, avg: {avg_time:.2f}s): "
+                                   f'"{final_text}"')
             else:
-                self.logger.warning(f"No transcription result in {transcription_time:.2f}s")
+                if self.debug_mode:
+                    self.logger.warning(f"No transcription result in {transcription_time:.2f}s")
             
             return final_text if final_text else None
             
@@ -308,7 +326,8 @@ class WhisperTranscriber:
         """Unload the model to free memory."""
         with self.model_load_lock:
             if self.model is not None:
-                self.logger.info("Unloading Whisper model...")
+                if self.debug_mode:
+                    self.logger.info("Unloading Whisper model...")
                 del self.model
                 self.model = None
                 
@@ -323,7 +342,8 @@ class WhisperTranscriber:
         except Exception as e:
             self.logger.error(f"Error during cleanup: {e}")
         finally:
-            self.logger.info("WhisperTranscriber cleaned up")
+            if self.debug_mode:
+                self.logger.info("WhisperTranscriber cleaned up")
     
     def __del__(self):
         """Destructor to ensure cleanup."""

@@ -1,5 +1,5 @@
 """
-Hardware detection and device selection for WhisperDictate.
+Hardware detection and device selection for Whisper Clipboard.
 Automatically detects available compute devices (CUDA, ROCm, MPS, CPU).
 """
 

@@ -1,4 +1,4 @@
-# WhisperDictate Dependencies
+# Whisper Clipboard Dependencies
 
 # Core ML/Audio
 openai-whisper
@@ -11,17 +11,9 @@ pyaudio
 pydub
 
 # System integration
-pynput
-keyboard
 pyperclip
+pynput
 
 # Configuration and utilities
 pyyaml
 more-itertools
-
-# Optional: OpenAI API fallback
-# openai
-
-# Development/debugging
-# ipython
-# jupyter

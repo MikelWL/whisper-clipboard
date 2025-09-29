@@ -1,6 +1,6 @@
 """
-Manual audio recorder for WhisperDictate.
-Simple start/stop recording without continuous callbacks to avoid NumPy buffer issues.
+Manual audio recorder for Whisper Clipboard.
+Start/stop recording without continuous callbacks to avoid NumPy buffer issues.
 """
 
 import pyaudio
@@ -8,20 +8,25 @@ import numpy as np
 import threading
 import time
 import logging
+import os
+import sys
+import contextlib
 from typing import Optional, Callable, List
 
 
 class ManualAudioRecorder:
-    """Simple manual audio recorder with start/stop control."""
+    """Manual audio recorder with start/stop control."""
     
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, debug_mode: bool = False):
         """
         Initialize ManualAudioRecorder.
-        
+
         Args:
             config: Audio configuration dictionary
+            debug_mode: Enable verbose debug logging
         """
         self.config = config
+        self.debug_mode = debug_mode
         self.logger = logging.getLogger(__name__)
         
         # Audio parameters
@@ -45,15 +50,39 @@ class ManualAudioRecorder:
         self.on_recording_stop: Optional[Callable[[np.ndarray], None]] = None
         
         self._initialize_audio()
-    
+
+    @contextlib.contextmanager
+    def _suppress_alsa_warnings(self):
+        """Context manager to suppress ALSA warnings."""
+        if self.debug_mode:
+            yield  # Don't suppress in debug mode
+            return
+
+        # Save original file descriptors
+        null_fd = os.open(os.devnull, os.O_RDWR)
+        stderr_fd = os.dup(2)
+
+        try:
+            # Redirect stderr to null
+            os.dup2(null_fd, 2)
+            yield
+        finally:
+            # Restore stderr
+            os.dup2(stderr_fd, 2)
+            os.close(null_fd)
+            os.close(stderr_fd)
+
     def _initialize_audio(self):
         """Initialize PyAudio and discover audio devices."""
         try:
-            self.pyaudio = pyaudio.PyAudio()
-            self.logger.info("PyAudio initialized successfully")
-            
-            # Log available audio devices for debugging
-            self._log_audio_devices()
+            with self._suppress_alsa_warnings():
+                self.pyaudio = pyaudio.PyAudio()
+
+            if self.debug_mode:
+                self.logger.info("PyAudio initialized successfully")
+
+                # Log available audio devices for debugging
+                self._log_audio_devices()
             
             # Validate device index
             if self.device_index is not None:
@@ -88,16 +117,18 @@ class ManualAudioRecorder:
         """Worker thread for recording audio data."""
         try:
             # Open audio stream
-            self.stream = self.pyaudio.open(
-                format=pyaudio.paFloat32,
-                channels=self.channels,
-                rate=self.sample_rate,
-                input=True,
-                input_device_index=self.device_index,
-                frames_per_buffer=self.chunk_size
-            )
+            with self._suppress_alsa_warnings():
+                self.stream = self.pyaudio.open(
+                    format=pyaudio.paFloat32,
+                    channels=self.channels,
+                    rate=self.sample_rate,
+                    input=True,
+                    input_device_index=self.device_index,
+                    frames_per_buffer=self.chunk_size
+                )
             
-            self.logger.info("Audio stream opened, starting recording...")
+            if self.debug_mode:
+                self.logger.info("Audio stream opened, starting recording...")
             
             # Record until stop event is set
             while not self.stop_recording_event.is_set():
@@ -147,8 +178,9 @@ class ManualAudioRecorder:
             self.logger.warning("Already recording")
             return False
         
-        self.logger.info("Starting manual recording...")
-        
+        if self.debug_mode:
+            self.logger.info("Starting manual recording...")
+
         # Reset state
         self.audio_buffer.clear()
         self.stop_recording_event.clear()
@@ -176,8 +208,9 @@ class ManualAudioRecorder:
             self.logger.warning("Not currently recording")
             return False
         
-        self.logger.info("Stopping manual recording...")
-        
+        if self.debug_mode:
+            self.logger.info("Stopping manual recording...")
+
         # Signal stop and wait for thread
         self.stop_recording_event.set()
         self.is_recording = False
@@ -192,8 +225,9 @@ class ManualAudioRecorder:
                 combined_audio = np.concatenate(self.audio_buffer)
                 duration = len(combined_audio) / self.sample_rate
                 
-                self.logger.info(f"Recording complete: {len(combined_audio)} samples "
-                               f"({duration:.2f}s)")
+                if self.debug_mode:
+                    self.logger.info(f"Recording complete: {len(combined_audio)} samples "
+                                   f"({duration:.2f}s)")
                 
                 # Trigger callback with audio data
                 if self.on_recording_stop:
@@ -268,7 +302,8 @@ class ManualAudioRecorder:
             finally:
                 self.pyaudio = None
         
-        self.logger.info("ManualAudioRecorder cleaned up")
+        if self.debug_mode:
+            self.logger.info("ManualAudioRecorder cleaned up")
     
     def __del__(self):
         """Destructor to ensure cleanup."""
@@ -287,7 +322,7 @@ if __name__ == "__main__":
         'sample_rate': 16000,
         'chunk_size': 1024,
         'channels': 1,
-        'device_index': 8  # HD Pro Webcam C920
+        'device_index': 0  # Default audio device
     }
     
     recorder = ManualAudioRecorder(config)
